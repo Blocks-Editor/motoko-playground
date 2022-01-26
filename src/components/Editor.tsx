@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useCallback } from "react";
 import styled from "styled-components";
 import MonacoEditor, { useMonaco } from "@monaco-editor/react";
 import ReactMarkdown from "react-markdown";
@@ -10,6 +10,7 @@ import { PanelHeader } from "./shared/PanelHeader";
 import { RightContainer } from "./shared/RightContainer";
 import { configureMonaco } from "../config/monacoConfig";
 import { Console } from "./Console";
+import { EmbeddedBlocksEditor, BLOCKS_PREFIX } from "./EmbeddedBlocksEditor";
 import iconRabbit from "../assets/images/icon-rabbit.png";
 import iconSpin from "../assets/images/icon-spin.gif";
 import {
@@ -39,11 +40,25 @@ const EditorContainer = styled.div<{ isHidden: boolean }>`
     background-color: var(--grey200) !important;
     width: 5.5ch !important;
   }
+
   ${(props) => (props.isHidden ? "display: none;" : "")}
 `;
 const MarkdownContainer = styled(EditorContainer)`
   overflow: auto;
   padding: 2rem;
+`;
+
+const CheckboxLabel = styled.label`
+  margin-bottom: 0;
+  margin-right: 2rem;
+  display: flex;
+  align-items: center;
+  text-transform: none;
+
+  > input {
+    margin-top: 2px;
+    margin-right: 0.5rem;
+  }
 `;
 
 function setMarkers(diags, codeModel, monaco, fileName) {
@@ -82,6 +97,7 @@ export function Editor({
 }) {
   const worker = useContext(WorkerContext);
   const dispatch = useContext(WorkplaceDispatchContext);
+  const [prioritizeBlocksEditor, setPrioritizeBlocksEditor] = useState(true);
 
   const fileName = state.selectedFile;
   const fileCode = fileName ? state.files[fileName] : "";
@@ -124,6 +140,8 @@ export function Editor({
     debouncedSaveChanges(newValue);
   };
   const deployClick = async () => {
+    setPrioritizeBlocksEditor(false); // Show generated source code
+
     const aliases = getActorAliases(state.canisters);
     await worker.saveWorkplaceToMotoko(state.files);
     await worker.Moc({ type: "setActorAliases", list: aliases });
@@ -150,11 +168,26 @@ export function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monaco, state]);
 
+  const hasBlocksPrefix = fileCode && fileCode.includes(BLOCKS_PREFIX);
+
   return (
     <EditorColumn>
       <PanelHeader>
-        Editor
+        {prioritizeBlocksEditor && hasBlocksPrefix ? "Blocks" : "Editor"}
         <RightContainer>
+          {hasBlocksPrefix &&
+            (fileCode !== BLOCKS_PREFIX || !prioritizeBlocksEditor) && (
+              <CheckboxLabel title="Toggle between the Blocks Editor and generated Motoko source code.">
+                <input
+                  type="checkbox"
+                  checked={!prioritizeBlocksEditor}
+                  onChange={(event) =>
+                    setPrioritizeBlocksEditor(!event.target.checked)
+                  }
+                />
+                View Motoko
+              </CheckboxLabel>
+            )}
           <Button
             onClick={deployClick}
             disabled={isDeploying}
@@ -172,20 +205,38 @@ export function Editor({
         </ReactMarkdown>
       </MarkdownContainer>
       <EditorContainer isHidden={fileName === "README"}>
-        <MonacoEditor
-          defaultLanguage={"motoko"}
-          value={fileName === "README" ? "" : fileCode}
-          path={fileName}
-          onChange={onEditorChange}
-          beforeMount={configureMonaco}
-          options={{
-            minimap: { enabled: false },
-            wordWrap: "on",
-            wrappingIndent: "indent",
-            scrollBeyondLastLine: false,
-            fontSize: 16,
-          }}
-        />
+        {/* Monaco Editor */}
+        {!(prioritizeBlocksEditor && hasBlocksPrefix) && (
+          <MonacoEditor
+            defaultLanguage={"motoko"}
+            value={fileName === "README" ? "" : fileCode}
+            path={fileName}
+            onChange={onEditorChange}
+            beforeMount={configureMonaco}
+            options={{
+              minimap: { enabled: false },
+              wordWrap: "on",
+              wrappingIndent: "indent",
+              scrollBeyondLastLine: false,
+              fontSize: 16,
+              readOnly: hasBlocksPrefix,
+            }}
+          />
+        )}
+        {/* Blocks Editor */}
+        {hasBlocksPrefix && (
+          <div
+            style={{
+              height: "100%",
+              display: prioritizeBlocksEditor ? "block" : "none",
+            }}
+          >
+            <EmbeddedBlocksEditor
+              value={fileCode || ""}
+              onChange={onEditorChange}
+            />
+          </div>
+        )}
       </EditorContainer>
       <Console setConsoleHeight={setConsoleHeight} />
     </EditorColumn>

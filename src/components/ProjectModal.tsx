@@ -11,6 +11,7 @@ import { ImportGitHub } from "./ImportGithub";
 import { fetchExample, exampleProjects, ExampleProject } from "../examples";
 import { WorkerContext } from "../contexts/WorkplaceState";
 import iconCaretRight from "../assets/images/icon-caret-right.svg";
+import { BLOCKS_PREFIX } from "./EmbeddedBlocksEditor";
 
 const ModalContainer = styled.div`
   display: flex;
@@ -25,6 +26,10 @@ const ProjectButtonContents = styled.div`
   display: flex;
   justify-content: space-between;
   width: 100%;
+`;
+
+const BetaTag = styled.span`
+  opacity: 0.75;
 `;
 
 function ProjectButton({ onClick, children }) {
@@ -72,6 +77,10 @@ export function ProjectModal({
   }
   async function emptyProject() {
     await importCode({ "Main.mo": "" });
+    close();
+  }
+  async function emptyBlocksProject() {
+    await importCode({ "Main.mo": BLOCKS_PREFIX });
     close();
   }
 
@@ -122,6 +131,9 @@ export function ProjectModal({
             <SelectList height="28.95rem">
               <ProjectButton onClick={emptyProject}>
                 New Motoko project
+              </ProjectButton>
+              <ProjectButton onClick={emptyBlocksProject}>
+                New Blocks project <BetaTag>(beta)</BetaTag>
               </ProjectButton>
               {Object.entries(exampleProjects).map(([name, project]) => (
                 <ProjectButton
